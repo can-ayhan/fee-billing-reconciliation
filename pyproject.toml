@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fee-billing-reconciliation"
+version = "0.1.0"
+description = "Reprices client activity from a tiered fee schedule and reconciles it against invoiced amounts"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.scripts]
+feerecon = "feerecon.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
