@@ -1,0 +1,16 @@
+client_id,service_code,override_type,value,effective_from,effective_to
+C10029,FXSPOT,discount_pct,10,2025-01-01,
+C10078,SETTLE,discount_pct,10,2024-01-01,2025-06-30
+C10089,CUSTODY,flat_rate,0.90,2024-07-01,
+C10144,SETTLE,flat_rate,0.90,2025-03-01,
+C10185,SWIFT,discount_pct,25,2025-01-01,
+C10190,CUSTODY,flat_rate,0.70,2024-07-01,
+C10202,CUSTODY,flat_rate,0.90,2024-07-01,
+C10225,SETTLE,flat_rate,0.90,2025-03-01,
+C10292,SETTLE,discount_pct,7.5,2024-04-01,2025-08-31
+C10307,SETTLE,discount_pct,10,2024-07-01,
+C10325,SETTLE,discount_pct,10,2024-07-01,
+C10354,SETTLE,discount_pct,12.5,2024-01-01,2025-06-30
+C10382,SETTLE,discount_pct,12.5,2024-01-01,2025-06-30
+C10393,SETTLE,discount_pct,7.5,2024-04-01,2025-08-31
+C10415,SETTLE,discount_pct,10,2024-07-01,

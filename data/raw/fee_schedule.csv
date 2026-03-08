@@ -1,0 +1,25 @@
+service_code,service_name,basis,band_method,unit,tier_from,tier_to,rate,effective_from,effective_to
+SETTLE,Settlement instruction,count,graduated,per_item,0,500,1.80,2025-01-01,2025-06-30
+SETTLE,Settlement instruction,count,graduated,per_item,500,2000,1.35,2025-01-01,2025-06-30
+SETTLE,Settlement instruction,count,graduated,per_item,2000,10000,0.95,2025-01-01,2025-06-30
+SETTLE,Settlement instruction,count,graduated,per_item,10000,,0.60,2025-01-01,2025-06-30
+SETTLE,Settlement instruction,count,graduated,per_item,0,500,1.90,2025-07-01,2025-12-31
+SETTLE,Settlement instruction,count,graduated,per_item,500,2000,1.40,2025-07-01,2025-12-31
+SETTLE,Settlement instruction,count,graduated,per_item,2000,10000,0.95,2025-07-01,2025-12-31
+SETTLE,Settlement instruction,count,graduated,per_item,10000,,0.60,2025-07-01,2025-12-31
+SETTLE,Settlement instruction,count,graduated,per_item,0,500,1.95,2026-01-01,
+SETTLE,Settlement instruction,count,graduated,per_item,500,2000,1.45,2026-01-01,
+SETTLE,Settlement instruction,count,graduated,per_item,1500,10000,1.00,2026-01-01,
+SETTLE,Settlement instruction,count,graduated,per_item,10000,,0.60,2026-01-01,
+CUSTODY,Safekeeping (assets under custody),amount,slab,bps_annual,0,250000000,1.50,2025-01-01,
+CUSTODY,Safekeeping (assets under custody),amount,slab,bps_annual,250000000,1000000000,1.00,2025-01-01,
+CUSTODY,Safekeeping (assets under custody),amount,slab,bps_annual,1000000000,,0.60,2025-01-01,
+FXSPOT,FX spot execution,amount,graduated,bps,0,10000000,2.00,2025-01-01,2025-06-30
+FXSPOT,FX spot execution,amount,graduated,bps,10000000,50000000,1.20,2025-01-01,2025-06-30
+FXSPOT,FX spot execution,amount,graduated,bps,50000000,,0.70,2025-01-01,2025-06-30
+FXSPOT,FX spot execution,amount,graduated,bps,0,10000000,1.80,2025-07-01,
+FXSPOT,FX spot execution,amount,graduated,bps,50000000,,0.70,2025-07-01,
+CORPACT,Corporate action processing,count,graduated,per_item,0,,25.00,2025-01-01,2025-03-31
+CORPACT,Corporate action processing,count,graduated,per_item,0,,27.50,2025-05-01,
+SWIFT,Messaging and reporting,count,graduated,per_item,0,,0.35,2025-01-01,
+SWIFT,Messaging and reporting,count,graduated,per_item,0,,0.40,2025-10-01,
