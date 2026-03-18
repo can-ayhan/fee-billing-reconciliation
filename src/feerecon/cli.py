@@ -17,6 +17,16 @@ def cmd_generate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_load(args: argparse.Namespace) -> int:
+    from feerecon.db import connect
+    from feerecon.load import load_inputs
+
+    with connect() as conn:
+        for table, rows in load_inputs(conn, args.raw).items():
+            print(f"{rows:>7,} rows  {table}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="feerecon", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -25,6 +35,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--out", type=Path, default=RAW_DIR)
     p.add_argument("--seed", type=int, default=2718)
     p.set_defaults(func=cmd_generate)
+
+    p = sub.add_parser("load", help="land the input files in staging")
+    p.add_argument("--raw", type=Path, default=RAW_DIR)
+    p.set_defaults(func=cmd_load)
 
     return parser
 
