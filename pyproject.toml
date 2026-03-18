@@ -7,7 +7,9 @@ name = "fee-billing-reconciliation"
 version = "0.1.0"
 description = "Reprices client activity from a tiered fee schedule and reconciles it against invoiced amounts"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "psycopg[binary]>=3.2",
+]
 
 [project.scripts]
 feerecon = "feerecon.cli:main"
