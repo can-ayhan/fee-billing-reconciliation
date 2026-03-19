@@ -27,6 +27,16 @@ def cmd_load(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_build(args: argparse.Namespace) -> int:
+    from feerecon.db import connect
+    from feerecon.pipeline import build
+
+    with connect() as conn:
+        build(conn)
+    print("validated, repriced and reconciled")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="feerecon", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -39,6 +49,9 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("load", help="land the input files in staging")
     p.add_argument("--raw", type=Path, default=RAW_DIR)
     p.set_defaults(func=cmd_load)
+
+    p = sub.add_parser("build", help="validate, clean, reprice and reconcile")
+    p.set_defaults(func=cmd_build)
 
     return parser
 
