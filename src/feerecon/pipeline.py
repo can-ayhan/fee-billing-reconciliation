@@ -9,6 +9,7 @@ from feerecon.db import run_sql_file
 BUILD_SCRIPTS = [
     "02_typed.sql",
     "03_schedule_validation.sql",
+    "04_client_master.sql",
 ]
 
 
