@@ -11,6 +11,7 @@ BUILD_SCRIPTS = [
     "03_schedule_validation.sql",
     "04_client_master.sql",
     "05_pricing_functions.sql",
+    "06_reprice.sql",
 ]
 
 
