@@ -37,6 +37,22 @@ def cmd_build(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_report(args: argparse.Namespace) -> int:
+    from feerecon.db import connect
+    from feerecon.report import print_report
+
+    with connect() as conn:
+        print_report(conn)
+    return 0
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """Load, build and report in one go."""
+    for step in (cmd_load, cmd_build, cmd_report):
+        step(args)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="feerecon", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -52,6 +68,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("build", help="validate, clean, reprice and reconcile")
     p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser("report", help="print what the control found")
+    p.set_defaults(func=cmd_report)
+
+    p = sub.add_parser("run", help="load + build + report")
+    p.add_argument("--raw", type=Path, default=RAW_DIR)
+    p.set_defaults(func=cmd_run)
 
     return parser
 
