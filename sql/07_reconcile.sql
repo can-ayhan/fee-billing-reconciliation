@@ -232,6 +232,7 @@ select
     count(*) filter (where status = 'NOT_PRICEABLE')                as not_priceable,
     coalesce(sum(billed_amount), 0)                                 as billed_total,
     coalesce(sum(expected_amount) filter (where status <> 'NOT_PRICEABLE'), 0) as expected_total,
-    coalesce(sum(difference) filter (where difference > 0), 0)      as over_billed,
-    coalesce(-sum(difference) filter (where difference < 0), 0)     as under_billed
+    -- cent differences inside the tolerance are not findings and are not counted here
+    coalesce(sum(difference) filter (where difference > 0 and status not in ('MATCH', 'WITHIN_TOLERANCE')), 0)  as over_billed,
+    coalesce(-sum(difference) filter (where difference < 0 and status not in ('MATCH', 'WITHIN_TOLERANCE')), 0) as under_billed
 from recon.lines;
