@@ -2,6 +2,8 @@
 
 A billing control for tiered fee schedules. It reprices what each client should have been charged from the tariff and their activity, compares that with what the billing system invoiced, and explains every difference.
 
+![Exception sheet](docs/exceptions.png)
+
 The setting is a securities-services provider billing institutional clients monthly for settlement, custody, FX, corporate actions and messaging. Fees depend on volume bands, the tariff changes during the year, and some clients have negotiated terms. The data is synthetic: a generator writes the inputs and a simulated billing system that makes specific, known mistakes.
 
 On the generated year (3,247 client-month-service lines, EUR 10.5 million billed) the control finds EUR 109,769 over-billed and EUR 27,434 under-billed, and EUR 1.08 million that cannot be verified because the fee schedule itself is defective.
@@ -18,6 +20,7 @@ flowchart LR
     M --> P
     P --> R[reconcile and classify]
     I[invoice_lines.csv] --> R
+    R --> X[exception workbook]
 ```
 
 | Step | Where | What happens |
@@ -27,6 +30,7 @@ flowchart LR
 | Clean the client master | `sql/04` | LEI check digits, duplicate records mapped to one surviving client |
 | Reprice | `sql/05`, `sql/06` | Fee functions for tiers, volume bands and client overrides |
 | Reconcile | `sql/07` | Billed against expected, with a cause for every difference |
+| Report | `src/feerecon/workbook.py` | Excel workbook listing each discrepancy |
 
 ## Inputs
 
@@ -91,6 +95,16 @@ What no variant reproduces stays "unexplained" instead of being forced into a ca
 
 The largest finding comes from the master data, not from pricing: a client that exists twice has its volume split over two records, so less of it reaches the cheaper bands.
 
+## Exception workbook
+
+`python -m feerecon excel` writes `reports/fee_billing_exceptions.xlsx`:
+
+- **Summary**: totals and the breakdown by cause
+- **Exceptions**: every discrepancy with client, month, service, billed and expected amount, difference, cause and a one-line explanation
+- **By client**, **Fee schedule issues**, **Client master issues**, **Causes**
+
+![Summary sheet](docs/summary.png)
+
 ## Run it
 
 Requirements: Python 3.11+ and Docker.
@@ -99,10 +113,11 @@ Requirements: Python 3.11+ and Docker.
 docker compose up -d                      # PostgreSQL on port 5434
 python -m venv .venv
 .venv/Scripts/activate                    # source .venv/bin/activate on Linux and macOS
-pip install -e ".[dev]"
+pip install -e ".[excel,dev]"
 cp .env.example .env
 
 python -m feerecon run                    # load, validate, reprice, reconcile, print the findings
+python -m feerecon excel                  # write the exception workbook
 pytest                                    # needs the database
 ```
 
@@ -113,10 +128,7 @@ pytest                                    # needs the database
 ```
 data/raw/          generated inputs and the list of planted issues
 sql/               numbered scripts: staging, validation, client master, pricing, reconciliation
-src/feerecon/      generator, loader, pipeline, console report
+src/feerecon/      generator, loader, pipeline, workbook
+reports/           the built exception workbook
 tests/             pytest suite, runs against the docker-compose database
 ```
-
-## Next
-
-- Excel workbook for the billing team: every discrepancy with its cause and amount
