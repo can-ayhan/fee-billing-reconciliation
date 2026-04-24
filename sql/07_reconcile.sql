@@ -8,6 +8,27 @@
 -- which variant reproduces the invoiced amount. What no variant reproduces is
 -- left as UNEXPLAINED instead of being forced into a category.
 
+-- Wording for the explanations: amounts with separators, quantities without
+-- trailing zeros, client terms in words.
+create or replace function recon.fmt_amount(value numeric) returns text
+language sql immutable as $$
+    select to_char(value, 'FM999,999,999,990.00')
+$$;
+
+create or replace function recon.fmt_quantity(value numeric) returns text
+language sql immutable as $$
+    select rtrim(rtrim(to_char(value, 'FM999,999,999,990.00'), '0'), '.')
+$$;
+
+create or replace function recon.fmt_terms(override_type text, value numeric) returns text
+language sql immutable as $$
+    select case override_type
+        when 'discount_pct' then recon.fmt_quantity(value) || ' % discount'
+        when 'flat_rate'    then 'flat rate of ' || recon.fmt_quantity(value)
+        else override_type || ' ' || value
+    end
+$$;
+
 drop table if exists recon.billed cascade;
 create table recon.billed as
 select
@@ -73,14 +94,14 @@ variants as (
         dq.reason                                                   as schedule_defect
     from flagged f
     left join lateral (
-        select format('%s %s', o.override_type, o.value) as terms
+        select recon.fmt_terms(o.override_type, o.value) as terms
         from pricing.client_override o
         where o.client_key = f.client_key and o.service_code = f.service_code
           and o.effective_from <= f.billing_month and (o.effective_to is null or o.effective_to >= f.month_end)
         order by o.effective_from desc limit 1
     ) act on true
     left join lateral (
-        select format('%s %s', o.override_type, o.value) as terms, o.effective_to
+        select recon.fmt_terms(o.override_type, o.value) as terms, o.effective_to
         from pricing.client_override o
         where o.client_key = f.client_key and o.service_code = f.service_code
           and o.effective_to < f.month_end
@@ -146,14 +167,15 @@ select
     end                                                         as cause,
     case
         when status = 'NOT_PRICEABLE' then 'Cannot be verified, the fee schedule has a defect: ' || coalesce(schedule_defect, 'no rate found')
-        when status = 'NOT_BILLED'    then format('Activity of %s with no invoice line', measure)
+        when status = 'NOT_BILLED'    then format('Activity of %s with no invoice line', recon.fmt_quantity(measure))
         when status = 'NO_ACTIVITY'   then 'Invoice line without any activity in the month'
         when status <> 'MISMATCH'     then null
         when billed_records > 1 and abs(billed_amount - split_amount) <= tolerance
             then format('Billed under %s client records (%s), each banded on its own. Priced as one client the fee is %s',
-                        billed_records, billed_client_ids, expected_amount)
+                        billed_records, billed_client_ids, recon.fmt_amount(expected_amount))
         when billed_quantity is distinct from measure and abs(billed_amount - fee_on_billed_quantity) <= tolerance
-            then format('Invoice quantity %s, activity %s. The amount is right for the invoiced quantity', billed_quantity, measure)
+            then format('Invoice quantity %s, activity %s. The amount is right for the invoiced quantity',
+                        recon.fmt_quantity(billed_quantity), recon.fmt_quantity(measure))
         when active_terms is null and expired_terms is not null and abs(billed_amount - fee_with_expired_terms) <= tolerance
             then format('Charged with the client terms (%s) that ended on %s', expired_terms, terms_ended_on)
         when active_terms is not null and abs(billed_amount - fee_without_terms) <= tolerance
