@@ -33,6 +33,7 @@ class Settings:
     database: str
     user: str
     password: str
+    extract_model: str      # Groq model that reads fee schedule documents; no default
 
     @property
     def conninfo(self) -> str:
@@ -50,4 +51,5 @@ def get_settings() -> Settings:
         database=os.environ.get("PGDATABASE", "feerecon"),
         user=os.environ.get("PGUSER", "feerecon"),
         password=os.environ.get("PGPASSWORD", "feerecon"),
+        extract_model=os.environ.get("FEERECON_MODEL", "").strip(),
     )
