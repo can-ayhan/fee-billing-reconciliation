@@ -1,8 +1,8 @@
-"""Extraction loop, driven by a scripted stand-in for the model.
+"""Extraction loop and review queue, driven by a scripted stand-in for the model.
 
 No API key is needed. The fake client replays canned tool calls, which is
-enough to test what this code is responsible for: validating rows and sending
-failures back with the reason.
+enough to test what this code is responsible for: validating rows, sending
+failures back, and keeping unreviewed rows out of the pricing tables.
 """
 
 from __future__ import annotations
@@ -18,6 +18,8 @@ import pytest
 pytest.importorskip("pydantic")
 
 from feerecon.config import ROOT, ConfigError  # noqa: E402
+from feerecon.db import run_sql_file  # noqa: E402
+from feerecon.extract import review  # noqa: E402
 from feerecon.extract.agent import extract_tariff  # noqa: E402
 from feerecon.extract.schema import TOOL, TOOL_NAME  # noqa: E402
 
@@ -205,3 +207,106 @@ def test_other_api_errors_are_not_swallowed_and_the_model_setting_is_required(mo
     monkeypatch.setenv("FEERECON_MODEL", "")
     with pytest.raises(ConfigError, match="FEERECON_MODEL"):
         extract_tariff(DOCUMENT, SERVICES, client=FakeClient())
+
+
+# review queue -------------------------------------------------------------------
+
+DOC = "test-schedule.txt"
+
+
+@pytest.fixture
+def queue(built):
+    """An extraction of the sample document in the queue, inside a transaction that is rolled back."""
+    built.rollback()
+    result = extract_tariff(DOCUMENT, review.known_services(built), client=FakeClient(tool_call(good_rows())))
+    counts = review.queue(built, DOC, result)
+    yield built, counts
+    built.rollback()
+
+
+def pending_ids(conn) -> list[int]:
+    return [r[0] for r in review.listing(conn, DOC)]
+
+
+def test_only_confident_rows_are_approved_automatically(queue):
+    conn, counts = queue
+    pending = review.listing(conn, DOC)
+
+    assert counts == {"approved": 11, "pending": 1}
+    assert [(r[3], r[2]) for r in pending] == [("SWIFT", "pending")]
+    assert "confidence 0.60 is below 0.85" in pending[0][10]
+
+
+def test_nothing_reaches_the_schedule_before_it_is_published(queue):
+    conn, _ = queue
+    in_schedule = conn.execute("select count(*) from pricing.fee_schedule where effective_from = %s", [START]).fetchone()[0]
+
+    assert in_schedule == 0
+    with pytest.raises(review.ReviewError, match="1 rows of test-schedule.txt are still waiting"):
+        review.publish(conn, DOC)
+
+
+def test_publishing_after_approval_extends_the_schedule(queue):
+    conn, _ = queue
+    assert review.decide(conn, pending_ids(conn), approve=True, decided_by="reviewer") == 1
+
+    assert review.publish(conn, DOC) == 12
+
+    fee = conn.execute("select pricing.client_fee('X', 'SETTLE', '2026-07-01', 2500)").fetchone()[0]
+    assert fee == Decimal("3650.00")                     # 500*1.95 + 1500*1.45 + 500*1.00
+    fx = conn.execute("select pricing.client_fee('X', 'FXSPOT', '2026-08-01', 30000000)").fetchone()[0]
+    assert fx == Decimal("4200.00")                      # the new card has the band the old one lost
+    still_open = conn.execute(
+        "select count(*) from pricing.fee_schedule where effective_to is null and effective_from < %s", [START]
+    ).fetchone()[0]
+    assert still_open == 0                               # earlier versions were closed the day before
+
+
+def test_published_rows_survive_a_rebuild_of_the_schedule(queue):
+    conn, _ = queue
+    review.decide(conn, pending_ids(conn), approve=True, decided_by="reviewer")
+    review.publish(conn, DOC)
+
+    run_sql_file(conn, "02_typed.sql")                   # schedule reloaded from the file
+    run_sql_file(conn, "02b_tariff_review.sql")
+    run_sql_file(conn, "03_schedule_validation.sql")
+
+    versions = conn.execute("select count(distinct service_code) from pricing.fee_schedule where effective_from = %s",
+                            [START]).fetchone()[0]
+    new_findings = conn.execute("select count(*) from dq.schedule_issues where effective_from = %s", [START]).fetchone()[0]
+    assert versions == 5 and new_findings == 0
+
+
+def test_rejecting_one_band_blocks_the_whole_version(queue):
+    conn, _ = queue
+    review.decide(conn, pending_ids(conn), approve=True, decided_by="reviewer")
+    conn.execute("""update pricing.tariff_review set status = 'rejected'
+                    where document = %s and service_code = 'SETTLE' and tier_from = 500""", [DOC])
+
+    with pytest.raises(review.ReviewError, match="SETTLE from 2026-07-01: no band between 500 and 2000"):
+        review.publish(conn, DOC)
+
+
+def test_a_version_that_already_exists_is_not_overwritten(queue):
+    conn, _ = queue
+    review.decide(conn, pending_ids(conn), approve=True, decided_by="reviewer")
+    conn.execute("update pricing.tariff_review set effective_from = '2025-07-01' where document = %s", [DOC])
+
+    with pytest.raises(review.ReviewError, match="already has a version for"):
+        review.publish(conn, DOC)
+
+
+def test_rows_that_failed_the_checks_wait_for_review(built):
+    rows = good_rows()
+    rows[10]["source_quote"] = "EUR 27.50 per event, as agreed"
+    built.rollback()
+    try:
+        result = extract_tariff(DOCUMENT, review.known_services(built),
+                                client=FakeClient(*[tool_call(copy.deepcopy(rows), f"c{n}") for n in range(3)]))
+        counts = review.queue(built, DOC, result)
+        waiting = {r[3]: r[10] for r in review.listing(built, DOC)}
+    finally:
+        built.rollback()
+
+    assert counts == {"approved": 10, "pending": 2}
+    assert "the quote is not in the document" in waiting["CORPACT"]
