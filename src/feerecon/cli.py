@@ -160,6 +160,9 @@ def main(argv: list[str] | None = None) -> int:
     from feerecon.config import ConfigError
 
     args = build_parser().parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):      # answers and client names go beyond the console code page
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     try:
         return args.func(args)
     except ConfigError as exc:
