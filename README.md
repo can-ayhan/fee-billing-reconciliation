@@ -21,6 +21,7 @@ flowchart LR
     P --> R[reconcile and classify]
     I[invoice_lines.csv] --> R
     R --> X[exception workbook]
+    D[fee schedule document] -. LLM extraction .-> Q[review queue] -. approved rows .-> V
 ```
 
 | Step | Where | What happens |
@@ -105,6 +106,23 @@ The largest finding comes from the master data, not from pricing: a client that 
 
 ![Summary sheet](docs/summary.png)
 
+## Loading a fee schedule from its text
+
+New tariffs arrive as documents, and keying them in by hand is where defects like the ones above come from. `python -m feerecon extract docs/tariffs/schedule_of_fees_2026-07.txt` reads a schedule document with an open model served by the Groq API and turns it into tariff rows. Groq's free tier is enough, so the whole project runs without paid services.
+
+The model is used for reading only:
+
+1. **Structured extraction.** The model's answer is forced to be a call of one tool whose JSON schema describes a row, so it cannot answer in any other shape. Pydantic validates the values.
+2. **Validation loop.** The rows go through the same gap and overlap rules as the SQL validation, and every row has to quote the document. Rows that fail are sent back with the list of problems, for up to three attempts.
+3. **Human review.** Rows land in `pricing.tariff_review`. A row is approved automatically only when the model was confident, the quote is in the document and its version passed the checks. The rest waits: `feerecon review list`, `approve`, `reject`.
+4. **Publishing.** `feerecon review publish <document>` is refused while rows are pending, re-checks the approved set, never overwrites an existing version and end-dates the version it replaces.
+
+All fees are still calculated by the SQL functions. Nothing the model returns is used for pricing before it has passed the queue.
+
+`extract` needs a free `GROQ_API_KEY` and the model to use in `FEERECON_MODEL`. With `openai/gpt-oss-120b` the sample schedule comes back as 12 correct rows on the first attempt, in under ten seconds.
+
+The tests need neither key nor model: they drive the loop with a scripted stand-in.
+
 ## Run it
 
 Requirements: Python 3.11+ and Docker.
@@ -113,12 +131,12 @@ Requirements: Python 3.11+ and Docker.
 docker compose up -d                      # PostgreSQL on port 5434
 python -m venv .venv
 .venv/Scripts/activate                    # source .venv/bin/activate on Linux and macOS
-pip install -e ".[excel,dev]"
+pip install -e ".[excel,extract,dev]"
 cp .env.example .env
 
 python -m feerecon run                    # load, validate, reprice, reconcile, print the findings
 python -m feerecon excel                  # write the exception workbook
-pytest                                    # needs the database
+pytest                                    # 122 tests, in their own database (feerecon_test)
 ```
 
 `python -m feerecon generate` rewrites the inputs. With the default seed it reproduces the committed files byte for byte.
@@ -127,8 +145,9 @@ pytest                                    # needs the database
 
 ```
 data/raw/          generated inputs and the list of planted issues
+docs/tariffs/      a fee schedule document for the extraction
 sql/               numbered scripts: staging, validation, client master, pricing, reconciliation
-src/feerecon/      generator, loader, pipeline, workbook
+src/feerecon/      generator, loader, pipeline, workbook, extraction and review
 reports/           the built exception workbook
 tests/             pytest suite, runs against the docker-compose database
 ```
